@@ -4,3 +4,5 @@
 
 layout: home
 ---
+
+[paper](/static/paper.pdf)
