@@ -191,6 +191,9 @@ GEM
       jekyll-seo-tag (~> 2.0)
     jekyll-titles-from-headings (0.5.3)
       jekyll (>= 3.3, < 5.0)
+    jekyll-toc (0.17.1)
+      jekyll (>= 3.9)
+      nokogiri (~> 1.11)
     jekyll-watch (2.2.1)
       listen (~> 3.0)
     jemoji (0.12.0)
@@ -211,6 +214,8 @@ GEM
       jekyll-feed (~> 0.9)
       jekyll-seo-tag (~> 2.1)
     minitest (5.16.3)
+    nokogiri (1.13.8-x86_64-darwin)
+      racc (~> 1.4)
     nokogiri (1.13.8-x86_64-linux)
       racc (~> 1.4)
     octokit (4.25.1)
@@ -253,11 +258,13 @@ GEM
     zeitwerk (2.6.0)
 
 PLATFORMS
+  x86_64-darwin-21
   x86_64-linux
 
 DEPENDENCIES
   github-pages (~> 227)
   jekyll-feed (~> 0.6)
+  jekyll-toc
   kramdown-parser-gfm
   minima (~> 2.0)
   tzinfo (~> 1.2)
