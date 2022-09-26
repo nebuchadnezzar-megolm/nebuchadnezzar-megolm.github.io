@@ -15,6 +15,7 @@
   <body>
     <div class="wrapper">
       <h1 class="title">{{ site.title | default: site.github.repository_name }}</h1>
+      <h1 class="small-title">{{ site.title | default: site.github.repository_name }}</h1>
       <div class="sidebar">
         {% if site.logo %}
           <img src="{{site.logo | relative_url}}" alt="Logo" />

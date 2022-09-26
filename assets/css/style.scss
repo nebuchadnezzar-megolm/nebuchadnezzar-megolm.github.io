@@ -3,8 +3,16 @@
 
 @import "{{ site.theme }}";
 
+a:hover {
+  font-weight: normal;
+  text-decoration: underline;
+}
+
 .title {
-  font-size: 48px;
+  font-size: 4em;
+  background: #ffffff;
+  z-index: 1;
+  position: relative;
 }
 
 .toc-block {
@@ -14,24 +22,43 @@
   margin-bottom: 20px;
 }
 
-.wrapper:after {
-  content: "";
-  display: table;
-  clear: both;
-}
-
 .sidebar {
   width: 270px;
   float: left;
   position: -webkit-sticky;
   position: sticky;
-  top: 0px;
+  top: 12em;
+}
+
+.small-title {
+  font-weight: 800;
+  position: fixed;
+  top: 4em;
+  font-size: 1.5em;
+  width: 270px;
 }
 
 @media print, screen and (max-width: 960px) {
+  .title{
+    font-size: 2.5em;
+  }
+
   .sidebar {
     float: none;
     position: static;
     width: auto;
   }
+
+  .small-title {
+    display: none;
+  }
+}
+
+// This is a clearfix for the wrapper which means it always takes the full height
+// of the child elements floating inside it. When it takes the height of it's
+// children properly, then the sidebar can position:sticky properly as well.
+.wrapper:after {
+  content: "";
+  display: table;
+  clear: both;
 }
