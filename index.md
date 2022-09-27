@@ -73,17 +73,6 @@ Quisque rutrum nulla ac ornare luctus. Sed bibendum dolor diam, sed interdum ant
 
 Morbi ultrices, turpis eget sollicitudin tincidunt, mi turpis egestas est, non lacinia elit risus ac dolor. Pellentesque augue mi, porttitor quis velit non, pharetra porttitor ante. Curabitur vehicula erat justo, a semper elit dignissim nec. Proin tempor ac arcu sed bibendum. Nunc sit amet elementum quam. Donec commodo nunc quis mauris vehicula mollis. Proin magna est, ultrices eget accumsan vitae, bibendum et velit. In bibendum tortor lorem, a feugiat libero hendrerit ac. Sed nec tellus aliquet, posuere nisl pretium, sollicitudin turpis. Integer sit amet dolor in dui tincidunt luctus. Curabitur porta pulvinar nibh a fermentum. Aenean venenatis lorem eros, non molestie lorem rutrum in. 
 
-# Downloads
-
-[Paper](/static/paper.pdf).
-
-# Team
-
-- Duis sed quam et metus tempus maximus a eu mauris.
-- Etiam commodo ipsum lobortis dictum pharetra.
-- Nunc fermentum nibh sit amet iaculis convallis.
-- Curabitur facilisis sem eleifend turpis convallis hendrerit.
-
 # Discussion
 
 Nulla vitae enim justo. In id vulputate eros, sit amet semper urna. Cras nulla mi, imperdiet sit amet bibendum in, cursus a nunc. Nunc ac massa vel odio tristique condimentum vel nec mi. Mauris lectus ante, laoreet vitae nibh sit amet, dapibus facilisis mauris. Curabitur venenatis erat non consequat pulvinar. Nulla blandit cursus ipsum at tincidunt. Nunc felis diam, commodo et odio quis, dapibus fermentum nisl. Quisque at ex sed quam sagittis accumsan. Fusce scelerisque, tellus id efficitur lacinia, mauris arcu imperdiet massa, sit amet pretium dui tellus nec est. Phasellus eleifend eleifend nisl pretium mattis. Nunc volutpat porta vulputate. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse efficitur mattis ex, ut pharetra mi volutpat quis. Sed purus dui, eleifend rutrum laoreet in, feugiat vitae arcu.

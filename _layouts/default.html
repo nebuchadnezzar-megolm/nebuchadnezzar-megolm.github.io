@@ -21,12 +21,13 @@
           <img src="{{site.logo | relative_url}}" alt="Logo" />
         {% endif %}
 
-        <p>{{ site.description }}</p>
-
         <div class="toc-block">
-          Contents:
+          Contents
           {% include toc.html html=content h_min=1 h_max=1%}
         </div>
+
+        {% include_relative _sidebar.html %}.
+
       </div>
       <section>
 
