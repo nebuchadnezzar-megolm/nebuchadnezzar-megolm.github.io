@@ -3,118 +3,208 @@
 # To modify the layout, see https://jekyllrb.com/docs/themes/#overriding-theme-defaults
 
 title: Nebuchadnezzar
+toc: true
 ---
 
 # Overview
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit. Praesent felis orci, sodales eu rhoncus eu, accumsan vel arcu. In blandit velit non sapien auctor facilisis. Pellentesque risus lorem, pellentesque congue imperdiet non, tincidunt a sem. Nulla in iaculis diam. Aenean eu elementum mauris, in posuere nunc. Mauris vestibulum enim malesuada efficitur eleifend. Donec sed purus tempus, blandit dolor tristique, sollicitudin nibh. Nam ac mattis ex. Donec porttitor mollis ornare. Maecenas euismod posuere volutpat. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas.
+We report several practically-exploitable cryptographic vulnerabilities in the end-to-end encryption in [Matrix](https://en.wikipedia.org/wiki/Matrix_(protocol)) and describe proof-of-concept attacks exploiting these vulnerabilities. When relying on implementation specific behaviour, these attacks target the Matrix standard as implemented by the `matrix-react-sdk` and `matrix-js-sdk` libraries.[^1] These libraries provide the basis for the flagship [Element](https://element.io/) client. The vulnerabilities we exploit differ in their nature (insecure by design, protocol confusion, lack of domain separation, implementation bugs) and are distributed broadly across the different subprotocols and libraries that make up the cryptographic core of Matrix.
 
-Curabitur consectetur eget justo a iaculis. Aenean consequat, erat ac fermentum fermentum, nulla lorem placerat lorem, et pellentesque purus nunc sit amet metus. Donec vel elementum orci, quis feugiat dolor. In sit amet lectus sollicitudin, tempor libero quis, posuere felis. Integer lorem lectus, venenatis sed sem eu, fermentum blandit arcu. Cras scelerisque ultrices nisi maximus gravida. Donec quis interdum elit. Praesent sit amet sodales eros.
+We target the setting where encrypted messaging and verification are enabled, i.e. in the presence of the strongest protections offered by the protocol. Furthermore, all attacks require cooperation of the homeserver. This is a natural threat model to consider, given that end-to-end encryption aims to provide protections against such untrusted third parties. We report the following vulnerabilities and attacks:
 
-# Information
+## Simple confidentiality break
 
-Etiam vel elementum tortor. Cras ultricies lorem eget eros finibus accumsan. Donec consequat in enim in porttitor. Nam ultricies, felis in vehicula maximus, risus nisl consectetur risus, id facilisis nisi urna quis ligula. Integer eget ipsum lacus. Vivamus congue leo odio, ac tristique orci convallis sed. Ut aliquet turpis et ex posuere, vel accumsan neque porta. In pretium mi enim, molestie fermentum neque pretium eu. Vestibulum vitae libero lorem. Ut id velit erat. Sed mollis, sapien eget convallis elementum, ante nibh pellentesque leo, vehicula rutrum neque mi nec lacus. 
+Our first two attacks exploit the homeserver’s control over the list of users and/or devices in a room. Neither of these attacks break the confidentiality of Megolm or Olm protocols (see below) directly, instead they utilise functionality that puts too much trust in the homeserver to act honestly (in the context of end-to-end encryption, such trust should be minimised).
 
-## Section 1
+In the first attack, a malicious homeserver can add users under their control to end-to-end encrypted rooms. Once the homeserver-controlled user has been added, they may decrypt future messages sent in the room.
 
-Sed finibus luctus enim in placerat. Vestibulum vel ultrices elit. Praesent faucibus, velit sit amet finibus scelerisque, libero ante consequat augue, vel tempus urna mauris sed orci. Praesent accumsan, magna eget ornare consequat, metus ipsum mollis tellus, quis porta diam nunc in sapien. Praesent pharetra pulvinar tincidunt. Sed facilisis consectetur leo non rutrum. Nam interdum enim nulla, sit amet vehicula sapien fringilla eget. Fusce quis urna vitae tortor lobortis hendrerit.
+In the Matrix specification, existing users in a room (with sufficient permissions) may invite other users to join. To do this, they ask the homeserver to invite the user, which will in turn generate a room membership message. Then, to join the room, the invited user accepts the invite through the homeserver.
 
-Integer eu massa arcu. Suspendisse sed venenatis enim. Pellentesque vitae suscipit nibh. Maecenas vulputate, odio placerat semper cursus, mauris orci commodo lectus, in aliquet felis arcu a nunc. Vestibulum molestie sollicitudin efficitur. Proin nec congue nisi. Quisque non nibh sapien. Proin quis auctor massa. Aliquam erat volutpat. Pellentesque in ultrices tortor, imperdiet tempus neque. Nam pretium eleifend arcu vitae pharetra. Quisque interdum ex non est pellentesque lobortis.
+However, these room management messages are not authenticated in the Matrix specification (even for end-to-end encrypted rooms) and such an exchange of messages can be faked by a homeserver, essentially allowing a user under the homeserver's control to join a room (without the permission of the room's existing users).
 
-Nunc ut est et quam imperdiet bibendum id sit amet tellus. Donec consectetur mi in mauris porta consequat. Aliquam ac erat at odio blandit congue. Aliquam congue fermentum gravida. Etiam molestie dolor pellentesque lacus molestie, non posuere felis viverra. Fusce vel ante convallis, placerat leo ut, viverra justo. Ut in luctus lacus. Maecenas justo orci, maximus at diam id, ornare fringilla magna.
+Megolm, the central object in Matrix' secure messaging, is a group messaging protocol used to encrypt and decrypt messages sent by users. When a Megolm session is first started, the owner of the session (the device that will be sending messages using it) generates an outbound and an inbound session. The inbound session is used by other devices to decrypt and authenticate messages encrypted using the outbound session (kept by the session owner). The inbound session is distributed through an Olm channel (a pairwise encrypted messaging protocol). When a new user joins an end-to-end encrypted room, the existing members will share their inbound Megolm sessions through the Olm protocol when the next send a message. These allow the new member to decrypt future messages sent in the room. Thus, this first attack breaks the confidentiality of user messages.
 
-Nunc vel augue non dui lobortis suscipit. Mauris laoreet nunc ut tellus molestie, at maximus metus dictum. In ut placerat libero. Fusce ut sem elit. Donec volutpat, arcu vitae viverra ultricies, velit lectus egestas enim, vitae volutpat justo libero non dui. Proin tempor molestie tellus vel varius. Morbi vitae euismod nulla. Maecenas vel scelerisque enim, sit amet ullamcorper risus. Aliquam non nunc non arcu fringilla porttitor. 
+While the Matrix specification does not require a mitigation of this behaviour, when a user is added to a room, Element will display this as an event in the timeline. Thus, to users of Element this is detectable. However, such a detection requires careful manual membership list inspection from users and to participants, this event appears as a legitimate group membership event. In particular, in sufficiently big rooms such an event is likely to go unnoticed by users.
 
-## Section 2
+In the second attack, a malicious homeserver adds a device under their control to another user's account in the room they wish to eavesdrop in. This device will be displayed and labelled as 'unverified' to all users in the room (and a warning icon will be added to the room and messages sent by the malicious device). Nonetheless, existing devices will share their inbound Megolm sessions with the new device, which allows decryption of future messages sent in the room. Thus, this second attack also breaks the confidentiality of user messages.
 
-Cras ornare et ipsum eu facilisis. Praesent vestibulum tristique tortor, eget posuere lorem laoreet vel. Sed cursus sem eget ligula tempor malesuada. Suspendisse pellentesque, justo ac condimentum fringilla, ex eros rhoncus velit, et commodo lacus lacus vel ante. Quisque faucibus porta quam, in laoreet enim congue iaculis. Proin in sapien augue. Vestibulum faucibus, nunc at vehicula placerat, felis elit ornare sem, eget euismod felis dui vel ante. Maecenas tristique elit ut felis auctor tincidunt. Phasellus condimentum sollicitudin augue, sodales suscipit purus interdum eget. Praesent aliquam eleifend neque et laoreet.
+These are design issues with the Matrix specification and thus all clients are affected unless they implement additional countermeasures.
 
-Interdum et malesuada fames ac ante ipsum primis in faucibus. Nulla id dolor pulvinar est condimentum euismod in maximus erat. Praesent porttitor sagittis velit non faucibus. Aenean vitae lacus suscipit, iaculis nisl vel, eleifend turpis. Sed euismod porttitor nisl ut finibus. Donec ornare iaculis fermentum. Suspendisse in risus elementum, rutrum magna sed, varius tellus. Sed quis mauris id nisi volutpat tristique. In quis tristique turpis. Donec facilisis eros vel urna accumsan, sit amet bibendum sem lacinia. Nam faucibus eu nunc et faucibus. Mauris pellentesque odio urna, a porta justo placerat sit amet. Fusce aliquam gravida metus, at tincidunt est maximus vel.
+We discuss this attack in the section "Homeserver Control of Room Membership" of our research paper.
 
-## Section 3
+## Attack against out-of-band verification
 
-Sed auctor felis non tellus pellentesque, quis rhoncus mi suscipit. Nullam id diam elementum, rutrum nisl posuere, fringilla nunc. Cras tristique tempus metus, euismod mollis turpis suscipit sit amet. Nullam non fermentum mi. Praesent fermentum lacus quis lorem luctus scelerisque. Sed sagittis ante consectetur dolor maximus viverra. Praesent mi urna, vehicula vel mattis in, laoreet id arcu. Cras tempor dui quis dolor varius dapibus. Vestibulum sed est ut ante venenatis tempor quis sit amet magna. Duis molestie neque lobortis elit iaculis consectetur ut sed nulla. Aenean nec sollicitudin metus. Mauris sem sem, condimentum et neque ac, laoreet porta nisl. Proin id neque quis sem suscipit laoreet et eu velit.
+Out-of-band verification in Matrix allows users to verify that the cryptographic identity they are communicating with matches the person they intend. Each user has a cross-signing identity that serves as the root-of-trust for their cryptographic identity. When completing the out-of-band verification process, the two devices establish a secure channel that they verify has not been interfered with, then share their cryptographic identities with each other. When each device receives the other's cryptographic identity, they sign it with their own. These signatures serve as a record of the out-of-band verification process, attesting to each device that the cryptographic identity they are interacting with matches the person it claims to.
 
-Morbi quis vestibulum nisl. Donec vel viverra dolor, et consectetur urna. Proin dictum egestas orci, non scelerisque urna feugiat sed. Curabitur ut eleifend leo. Donec volutpat velit ante. Duis eleifend sit amet tellus eget consectetur. Nullam euismod sem lacus, ac mattis sapien vestibulum ut.
+However, in some areas of the Matrix specification, device identifiers and key identifiers (used to identify cryptographic identities) are used interchangeably.
+In our attack, a malicious homeserver uses this lack of domain separation to convince their target to cryptographically sign (and thus verify) a cross-signing identity controlled under the homeserver's control. 
+Once completed, this enables a [mallory-in-the-middle](https://en.wikipedia.org/wiki/Man-in-the-middle_attack) (MITM) attack, breaking the confidentiality and authenticity of the underlying Olm channels (and thus also Megolm channels).
 
-Ut ac pretium felis. Quisque eu tristique velit. Aliquam vestibulum augue est, non pretium purus pharetra nec. Maecenas lacus risus, consectetur venenatis cursus et, gravida quis orci. Praesent congue risus sit amet accumsan maximus. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras massa est, euismod eget velit sed, elementum pulvinar tortor. Nullam porttitor faucibus risus eget pretium. Nulla molestie pharetra nulla. Praesent ultricies, tellus dictum suscipit aliquam, ex magna condimentum magna, et sagittis felis elit id sapien. Cras pharetra quis mi non consequat. 
+This issue derives from an insecure implementation choice permitted by the specification (which does not enforce domain separation between device and key identifiers). Today's disclosure fixes the insecure implementation choice, and the developers plan to separate the two formats in the specification at a later date.
 
-## Section 4
+We discuss this attack in the section "Key/Device Identifier Confusion in SAS" of our research paper.
 
-Nulla eu ornare orci. Phasellus tincidunt semper nibh, at mollis diam molestie id. Phasellus mollis mi tortor, ut scelerisque nulla tincidunt nec. Nunc sed urna eu dui imperdiet egestas et at erat. In at massa sit amet orci elementum aliquam vitae vitae lacus. Suspendisse sollicitudin pharetra justo non malesuada. Phasellus blandit ut orci in egestas. Fusce non dolor felis. Duis fringilla nibh sit amet mi placerat, id eleifend lectus tristique.
+## Semi-trusted impersonation
 
-Mauris mollis dignissim nibh. Integer molestie euismod euismod. Sed quam purus, pellentesque vitae est nec, euismod fringilla est. Ut id nisi commodo, pellentesque ante eget, vehicula magna. Phasellus id nibh imperdiet, varius tellus ac, congue erat. Vivamus eget pulvinar sapien, in dignissim tellus. Vestibulum sit amet dui sed leo tempor iaculis sit amet imperdiet tellus. Quisque pharetra egestas lectus quis mollis. Nulla luctus aliquet enim, fringilla fermentum odio porta eget.
+There exist situations where a device in Matrix is missing inbound Megolm sessions that it should have access to. For example, when a user adds a new device, that device should be able to decrypt messages sent before the device had been added. Since the device missed the initial distribution of such keys, it can use the 'Key Request protocol' to request a copy from other devices.
 
-Nulla dui ligula, sagittis sed iaculis vitae, mollis at erat. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Sed sed lectus gravida, efficitur risus at, vulputate lectus. In in leo sit amet dui consequat pellentesque eleifend ac tortor. Morbi tellus tellus, laoreet et vulputate non, elementum eu ante. Nullam nec est vitae magna ultrices venenatis sed eu nisl. Pellentesque cursus, tellus id tristique lacinia, nunc neque malesuada mi, et semper orci velit malesuada nulla. Pellentesque rhoncus bibendum erat quis laoreet. Vestibulum eget porta neque. Etiam convallis urna nisl. Donec sit amet urna sem. Suspendisse et fringilla urna, sit amet sagittis nisl. In imperdiet nisi id nisi tincidunt, quis euismod magna pretium. 
+Matrix does not provide a cryptographic mechanism to ensure that the keys shared through the 'Key Request protocol' are legitimate. The specification therefore requires that sharing of inbound Megolm sessions should only be completed between devices that trust each other. For example, the reference implementation will only request missing keys from a user's own verified devices, or from the device that originally generated the session. As a further precaution, a warning message is added next to messages that have been decrypted using forwarded key.
 
-## Section 5
+Whilst Element clients restrict who they share keys with, no verification is implemented on who to accept key shares from. Our attack exploits this lack of verification in order to send attacker controlled Megolm sessions to a target device, claiming they belong to a session of the device they wish to impersonate. The attacker can then send messages to the target device using these sessions, which will authenticate the messages as coming from the device being impersonated. Whilst these messages will be accompanied by a warning, this is the same warning that accompanies keys *honestly* forwarded with the "Key Request protocol".
 
-Etiam nisi ligula, gravida vitae purus vel, consequat molestie nunc. Donec a facilisis augue, ac mollis nulla. Pellentesque sem magna, euismod sed consequat nec, vestibulum sit amet ante. Suspendisse in ex ante. Sed porta dictum odio, id tempus nisl vehicula in. Nam libero risus, finibus id urna congue, pulvinar feugiat magna. Nunc luctus finibus justo sit amet ullamcorper. Curabitur ut justo varius felis volutpat gravida sit amet eget magna. Praesent auctor rhoncus augue, quis tincidunt sapien convallis non. Aliquam sodales nisl id enim tincidunt laoreet. Morbi tincidunt purus in quam faucibus porta.
+This is mostly implementation bug supported by a lack of guidance on the processing of incoming key shares in spec.
 
-Aenean at vehicula purus. Nunc ac sapien in turpis blandit hendrerit eget vel turpis. Nullam gravida, augue non mattis sodales, tellus ipsum sagittis purus, a molestie eros ipsum non sapien. Suspendisse potenti. Integer a justo efficitur, porttitor sem eu, pretium massa. Donec id arcu erat. Aliquam maximus ipsum eu risus feugiat, quis ultrices magna fringilla. In ac nisl eget velit bibendum iaculis ut nec nibh. Ut imperdiet quis lacus ut gravida. Integer ut consectetur velit.
+We discuss this attack in the section "Semi-trusted Impersonation against Megolm
+Authentication" of our research paper.
 
-Ut tincidunt tortor at ex porta lacinia ac a nisl. Nam nec ante volutpat magna dictum pulvinar eu ut nulla. In pretium nulla quis egestas laoreet. Nam tempor ultrices convallis. Donec convallis at tortor sit amet dictum. Nam sodales turpis et arcu malesuada, sit amet facilisis turpis mollis. Donec ut mollis neque. Aliquam venenatis varius purus a feugiat. Sed tincidunt at magna in tristique. Praesent quis sapien sed nisl tincidunt sollicitudin. Pellentesque euismod vel est vel posuere. Praesent et condimentum erat, vehicula sollicitudin ipsum. Integer commodo augue non tellus auctor tristique. Donec leo nisl, iaculis tempus dictum in, suscipit ac enim. Phasellus id placerat justo. In in vestibulum urna, vitae fringilla lorem. 
+## Trusted impersonation
 
-## Section 6
+When a Megolm session is first started, the owner of the session generates an outbound and an inbound session. The inbound session is distributed through an Olm channel. However, prior to today's fixes, `matrix-js-sdk` only required that such messages are encrypted, not that they were encrypted with an Olm channel. This opens the flagship client (and others utilising the `matrix-js-sdk` library) to a protocol confusion attack.
 
-Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Mauris venenatis felis risus, id pharetra nulla porta nec. Donec fermentum, lorem convallis pulvinar sodales, elit lacus tristique augue, laoreet sagittis odio libero vitae massa. Donec et sollicitudin orci. Suspendisse tempus volutpat erat, nec cursus ipsum laoreet vitae. Sed faucibus rutrum dui et rutrum. Fusce eget augue eu massa elementum pulvinar eget ut erat. Fusce nec dolor et lectus efficitur lobortis at sed ex. Vivamus eu consectetur felis. Cras rhoncus erat arcu, non maximus purus mattis id. Quisque laoreet eget orci et volutpat. Nunc lacinia aliquam tempus. Duis aliquam, velit quis accumsan ornare, dolor ligula facilisis odio, id sodales orci nisl ac augue. Suspendisse lacinia varius tincidunt. 
+To start, the adversary establishes a Megolm channel using the previously mentioned semi-trusted impersonation attack (the *outer* session). They then initiate a second, *inner* Megolm session that is then distributed to other devices using a Megolm key share message (not as a forwarded room key). This *inner* shared Megolm session inherits its *sender* from the outer, forged Megolm session, but without inheriting its *forwarded* status. Thus, this attack allows an attacker to *upgrade* the level of trust enjoyed by the key material sent by the attacker such that no indication is given in the UI that a user should treat it with caution.
+
+This is an implementation bug aided by the overall layout in `matrix-js-sdk`, where cryptographic functionality is spread across several submodules. In particular,  Element implements verification of message authentication not at decryption time but at display time.
+
+We discuss this attack in the section "Trusted Impersonation and Confidentiality Breaks against Megolm" of our research paper.
+
+## Impersonation to confidentiality break
+
+An extension of the semi-trusted impersonation attack, combined with the aforementioned protocol confusion, allows an attacker and colluding homeserver to gain access to all inbound Megolm sessions their target has access to.
+
+The Secure Secret Storage and Sharing (SSSS) module provides a means for a user's devices to share account-level secrets either asynchronously via encrypted backups on the homeserver, or synchronously using a secret sharing protocol.
+
+When a user performs out-of-band verification between two of their devices, the newly verified device will use the SSSS module's secret sharing protocol to request some account level secrets from the verifying device. In particular, it will request a copy of the key used for server-side Megolm backups from the verifying device (server-side Megolm backups are encrypted backups of inbound Megolm sessions shared across a user's devices).
+
+The same Olm/Megolm protocol confusion as described in the previous attack can be exploited by an attacker to impersonate the verifying device and reply to the request. This allows the attacker to set the Megolm backup key used by the newly verified device to a value of their choosing. The device will accept this key and proceed to backup inbound Megolm sessions to the homeserver. The attacker and colluding homeserver are then able to decrypt the backups, giving them access to the plaintext of every Megolm message the target device has access to.
+
+This is an implementation bug.
+
+We discuss this attack in the section "Trusted Impersonation and Confidentiality Breaks against Megolm" of our research paper.
+
+## IND-CCA break
+
+[AES-CTR](https://en.wikipedia.org/wiki/Block_cipher_mode_of_operation) is used for encryption in both the SSSS protocol and in symmetric Megolm Key Backups. However, the initialisation vector (IV) for AES-CTR is not included in the [message authentication code](https://en.wikipedia.org/wiki/Message_authentication_code) (MAC). A similar issue exists when attachments are shared. This can be exploited to break the [IND-CCA](https://en.wikipedia.org/wiki/Ciphertext_indistinguishability#IND-CCA) security of the underlying encryption scheme: an adversary is able to decrypt a challenge ciphertext by querying encryption and decryption oracles, without requesting decryption of the challenge ciphertext directly. However, in practice we do not know how to instantiate this attack and thus it, in contrast to those mentioned so far, is only of theoretical interest.
+
+This is an issue in the Matrix specification.
+
+We discuss this attack in the section "IND-CCA Attack on Backups" of our research paper.
 
 ## Summary
 
-Aliquam gravida egestas orci eu tempus. Cras commodo nulla non sem dapibus, vel cursus sapien pellentesque. Aenean venenatis et leo ac pellentesque. In hac habitasse platea dictumst. Maecenas ut mi a massa placerat tincidunt. Suspendisse sit amet ante scelerisque, egestas metus a, aliquet felis. Mauris non vulputate odio, id finibus turpis. 
+In summary, we found that Matrix and its flagship client Element as deployed provided neither authentication nor confidentiality against homeservers that actively attack the protocol, i.e. its end-to-end encryption fell short of the security guarantees expected from it.
 
-# Future Changes
+# Remedies/Fixes
 
-Nulla eu nisl at leo malesuada elementum eget suscipit eros. Curabitur a facilisis felis. Pellentesque rhoncus tellus eget nisi porttitor faucibus. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. In vitae porta erat, quis viverra tortor. Donec vitae convallis quam, et rutrum nibh. Praesent ut ante venenatis, congue massa non, iaculis lectus. Maecenas iaculis, tellus in hendrerit ultrices, nisi erat dictum elit, a suscipit ex arcu et erat. Fusce egestas in lorem non eleifend. Ut a eros at nisl cursus porta rhoncus ac nunc. Mauris sit amet semper mi. Vivamus laoreet odio vel metus rutrum aliquet. Maecenas porta, arcu mollis vulputate ultricies, ex ligula viverra nibh, et elementum ex ipsum vitae tortor. Nam interdum pellentesque vehicula. Sed vitae lorem mi.
+**The Matrix developers report on these vulnerabilities, fixes and countermeasures on their [blog](https://matrix.org/blog/category/security).**
 
-Nulla quis mattis justo. Phasellus dui augue, interdum vitae pulvinar ut, finibus nec tellus. Nulla nisi odio, accumsan at tempor a, vestibulum a nisi. Curabitur vehicula arcu vel augue sagittis, a sagittis risus ornare. Curabitur fermentum vitae lacus eget fringilla. Mauris interdum ipsum tortor, at sodales velit lacinia nec. Nullam eget metus hendrerit, iaculis ligula at, placerat orci. Morbi a accumsan lacus.
+We disclosed our attacks to the Matrix developers between 20 May 2022 and 6 July 2022. They acknowledge these as vulnerabilities except for one of our attacks on confidentiality (homeserver control of room members, see below) which they consider as an accepted risk (but aim to mitigate regardless). We coordinated a public vulnerability disclosure for the 28 September 2022, to coincide with the first set of countermeasures. These should provide immediate fixes (to varying degrees) for our attacks. At the time of public disclosure, the Matrix specification and Element will *not* be vulnerable to 
 
-Quisque rutrum nulla ac ornare luctus. Sed bibendum dolor diam, sed interdum ante pellentesque vitae. Donec eget convallis ante. Fusce sit amet tempus leo, in sollicitudin odio. Cras laoreet, mi et auctor ultricies, mi massa ultrices justo, sed aliquam risus lectus ultrices nisl. Duis sit amet lacus ac ipsum pharetra vestibulum vel et ante. Nam ut pellentesque dui. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos.
+- the attack against out-of-band verification, 
+- the semi-trusted impersonation attack, 
+- the trusted impersonation attack and 
+- the impersonation to confidentiality attack. 
 
-Morbi ultrices, turpis eget sollicitudin tincidunt, mi turpis egestas est, non lacinia elit risus ac dolor. Pellentesque augue mi, porttitor quis velit non, pharetra porttitor ante. Curabitur vehicula erat justo, a semper elit dignissim nec. Proin tempor ac arcu sed bibendum. Nunc sit amet elementum quam. Donec commodo nunc quis mauris vehicula mollis. Proin magna est, ultrices eget accumsan vitae, bibendum et velit. In bibendum tortor lorem, a feugiat libero hendrerit ac. Sed nec tellus aliquet, posuere nisl pretium, sollicitudin turpis. Integer sit amet dolor in dui tincidunt luctus. Curabitur porta pulvinar nibh a fermentum. Aenean venenatis lorem eros, non molestie lorem rutrum in. 
+A second set of countermeasures is currently in the design phase, which aim to provide complete fixes for every vulnerability we identified.
+
+In particular, the attacks concerning homeserver control of room membership and user device lists will not be fixed at the time of disclosure. However, a new local per-room setting will be added alongside the disclosure in order to mitigate the homeserver’s control of user device lists. In the long-term, the Matrix developers plan to develop fixes for both of these attacks. 
+
+A fix for the IND-CCA break will also be distributed at a later date. Since the IND-CCA break appears not to be practically exploitable, this should not affect users.
 
 # Discussion
 
-Nulla vitae enim justo. In id vulputate eros, sit amet semper urna. Cras nulla mi, imperdiet sit amet bibendum in, cursus a nunc. Nunc ac massa vel odio tristique condimentum vel nec mi. Mauris lectus ante, laoreet vitae nibh sit amet, dapibus facilisis mauris. Curabitur venenatis erat non consequat pulvinar. Nulla blandit cursus ipsum at tincidunt. Nunc felis diam, commodo et odio quis, dapibus fermentum nisl. Quisque at ex sed quam sagittis accumsan. Fusce scelerisque, tellus id efficitur lacinia, mauris arcu imperdiet massa, sit amet pretium dui tellus nec est. Phasellus eleifend eleifend nisl pretium mattis. Nunc volutpat porta vulputate. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Suspendisse efficitur mattis ex, ut pharetra mi volutpat quis. Sed purus dui, eleifend rutrum laoreet in, feugiat vitae arcu.
+On the one hand, some of our attacks highlight a rich attack surface by “chaining” different attacks to achieve their goals. In particular, we compose a “weak” authentication break which exploits missing verifications, a stronger authentication break which exploits a protocol confusion aided by the implementation design choice to check cryptographic properties at display rather than receiving time, and a MITM attack that breaks confidentiality by convincing a target to use an adversary controlled key as backup.
 
-Suspendisse quam elit, sollicitudin a luctus quis, rutrum nec erat. Nunc lacinia leo eu auctor pretium. Aliquam eget ipsum in metus mollis tempus ac vitae justo. Proin bibendum sit amet sapien non fermentum. Donec egestas egestas tincidunt. Aliquam euismod vulputate nunc eu feugiat. Vestibulum imperdiet blandit finibus. Vestibulum sit amet quam sem. Mauris semper lorem ut aliquam rhoncus. Phasellus sit amet purus tortor. Integer a blandit nunc. Ut sagittis feugiat accumsan. Duis imperdiet ultricies sapien, sed rutrum erat feugiat nec. Sed arcu est, blandit ut purus eu, ornare cursus dui.
+On the other hand, our attacks are well distributed across the different parts of the overall cryptographic core of the Matrix protocol. In particular, we show that the Matrix specification offers no cryptographic guarantees of confidentiality by design against a malicious homeserver which may trivially add new users and devices to a room, that an identifier confusion in a separate protocol allows to break authentication and thus confidentiality even for the lowest level Olm channels, and that the key backup scheme in yet another subsystem does not achieve formal IND-CCA security.
 
-Sed tincidunt enim a sem semper elementum. Sed luctus sapien nisl, et vulputate sapien convallis in. In accumsan lectus eu massa vulputate, vel porta massa viverra. Sed justo sem, tempor a semper ac, fringilla et felis. In ut risus vitae tellus scelerisque euismod sit amet eget leo. Vivamus vestibulum porta lorem, vitae semper felis facilisis et. Maecenas vehicula diam felis, non pulvinar nunc tempus id. Vestibulum sed purus id arcu placerat imperdiet. Aliquam aliquam tempor tellus eget faucibus. Fusce blandit nisl ac tellus fermentum, ut euismod nulla pulvinar. Aliquam accumsan, mauris eget lacinia finibus, diam nunc tempor lacus, id sollicitudin orci enim gravida erat. Nullam scelerisque auctor facilisis. Phasellus iaculis ex at mi sagittis, lacinia condimentum neque condimentum. Maecenas accumsan arcu vel tempor rhoncus.
+Besides the observed implementation and specification errors, these vulnerabilities highlight a lack of a unified and formal approach to security guarantees in Matrix. Rather, the specification and its implementations seem to have grown “organically” with new sub-protocols adding new functionalities and thus inadvertently subverting the security guarantees of the core protocol. This suggests that, besides fixing the specific vulnerabilities reported here, the Matrix/Megolm specification will need to receive a [formal security analysis](https://en.wikipedia.org/wiki/Provable_security) to establish confidence in the design.
 
-Phasellus eget sem vel erat ullamcorper rutrum nec et tellus. Sed dapibus mauris tortor, vel molestie augue malesuada ultrices. Sed imperdiet lacus id odio lobortis viverra sit amet in ligula. Duis finibus mauris lacus, maximus sagittis arcu gravida eget. Nullam sagittis, nibh eget mollis blandit, est est imperdiet lacus, non sollicitudin mauris magna in orci. Integer vestibulum nisl eu dolor cursus faucibus. Nullam fermentum ex eget augue porttitor ullamcorper. Praesent et nisl eget odio sagittis eleifend. Nullam blandit eleifend eros sit amet interdum. Etiam ultrices suscipit dui. Curabitur at gravida arcu. 
+Finally, our attacks are against a setting where Matrix aims to provide the strongest guarantees, i.e. where every device and user have performed out-of-band verification. If this condition is not satisfied, even for one device or user, then “all bets are off” and e.g. impersonation becomes trivial. While Element already supports the option of refusing to send messages to unverified devices it does not reject messages from such devices. Thus, unless a client-side option is provided to reject all communication from unverified devices or rooms with such devices within them, Matrix clients will not provide a secure chat environment regardless of cryptographic guarantees provided for verified devices.
 
-# Frequently Asked Questions
+# Anticipated Questions & Answers
 
-Vestibulum rhoncus tempor ultricies. Nullam ornare ipsum eu augue lacinia, vitae sagittis metus luctus. Proin faucibus nibh sit amet sapien posuere, tempus venenatis neque vehicula. 
+## Are these attacks design flaws in the Matrix specification?
 
-## 1. What is something you can never seem to finish?
+We will explain this one by one by using the name of the attacks previously defined:
 
-Donec dictum eros eu velit mattis, sit amet finibus nibh ultricies. Duis porta vehicula efficitur. Phasellus accumsan hendrerit magna, ut ultrices est fringilla in. Aenean ullamcorper diam quam, in aliquam tortor consequat sit amet. Duis scelerisque malesuada eros, et ornare neque. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec ultrices quam non ipsum tincidunt, auctor laoreet lorem commodo. Nam tempor in urna ac molestie. Aenean sit amet viverra nunc, a pulvinar magna. Mauris sit amet ex orci. 
+a. **Simple confidentiality break**: The root cause of this attack is the fact that room management messages are not authenticated, which is a design flaw in the protocol itself, as no mechanism was specified for authentication of such messages.
 
-## 2. Mountains or ocean?
+b. **Attack against out-of-band verification**: This attack exploits an insecure implementation choice enabled by a design flaw in the specification as there is no domain separation enforced there.
 
-Fusce ornare hendrerit augue vitae finibus. Cras id arcu ultrices, aliquet odio vitae, finibus nunc. Proin vehicula metus nisi, nec posuere libero vulputate vel. Fusce et dignissim augue. Donec id tempus metus. In ultrices, sapien a tempus finibus, ex enim interdum mauris, ut laoreet arcu ipsum et arcu. Vestibulum laoreet auctor fringilla. Vivamus nec eleifend tellus. Donec convallis dolor ut purus varius fermentum. Praesent pretium est non lobortis condimentum. Proin tristique augue a lobortis condimentum. Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
+c. **Semi-trusted impersonation**: This is mostly implementation bug supported by a lack of guidance on the processing of incoming key shares in spec.
 
-## 3. What languages do you speak?
+d. **Trusted impersonation**: This is an implementation error as no check is performed to check whether Olm is used for encryption or not.
 
-Quisque commodo, mi id lacinia dictum, ante magna tincidunt velit, vel pharetra felis libero efficitur felis. Donec ante purus, finibus quis orci nec, lobortis consectetur dui. Phasellus justo mauris, tempus at nisl sed, ultrices egestas mi. Phasellus a lorem ut est laoreet maximus eu et nulla. Aliquam erat volutpat. Nam eu ornare velit. Donec dui orci, consequat non leo fringilla, venenatis consequat ante. 
+e. **Impersonation to confidentiality break**:  This is an implementation error as no check is performed to check whether Olm is used for encryption or not.
 
-## 4. Who are some of your heroes?
+f. **IND-CCA break**: This theoretical attack exploits a protocol design flaw.
 
-Donec at turpis eget erat mollis ornare. Vestibulum id libero sit amet urna hendrerit cursus et sed neque. Sed vel turpis cursus, fringilla nibh sit amet, fringilla metus. Curabitur in lorem et diam bibendum congue. Nam a feugiat elit. In massa orci, ultricies ut vestibulum ac, iaculis sit amet lorem. In orci elit, mattis non laoreet at, porttitor eget lorem. Fusce accumsan, lectus a dictum ullamcorper, libero mi posuere mauris, nec elementum dui orci ut nisi. Etiam ut eleifend est. Donec dignissim augue a enim fringilla, eget porttitor elit volutpat. Nullam blandit tempus massa a consectetur. Etiam ut nunc nisl. Suspendisse vitae ex sollicitudin, maximus enim non, iaculis metus. 
+## What is a Matrix's homeserver?
 
-## 5. What's your favorite book?
+As specified [here](https://matrix.org/faq/#what-is-a-haomeserver%3F), a Matrix's homeserver is a server that stores the communication history and account information for a client, and shares data with the wider Matrix ecosystem by synchronising communication history with other homeservers.
 
-Proin vulputate lectus a nibh dictum, a dapibus purus suscipit. Suspendisse fringilla metus eu efficitur faucibus. Duis vestibulum magna sed augue vulputate, ut accumsan urna vestibulum. Maecenas in ante neque. Cras cursus maximus odio et maximus. Sed gravida rutrum vehicula. Phasellus ac orci et lacus maximus dictum quis ac velit. Nulla in luctus dolor. Pellentesque vehicula accumsan vulputate. Sed ultrices vulputate porta. Duis in egestas sapien, ac aliquam massa. Integer vestibulum, dui sed dictum dictum, eros arcu posuere risus, a fringilla elit leo ac ligula. 
+The end-to-end encryption in Matrix should protect users from malicious homeservers (whether that is their own homeserver or one that is federating with their own).
 
-## 6. Have you ever saved someone's life?
+## What is Element?
 
-Ut vel condimentum dolor, eu sodales augue. Donec sagittis augue sit amet ligula consectetur, eleifend pharetra ipsum laoreet. Nullam ornare odio enim, non maximus ligula iaculis quis. Suspendisse ut tristique est. Donec sit amet felis at risus eleifend hendrerit a sit amet ipsum. Cras eget enim ut diam tempor eleifend vel in nulla. Praesent vulputate, risus eu ultrices volutpat, lacus ante tempor sem, eget rutrum sem tellus vitae metus. Vestibulum vehicula elit quam, dictum ullamcorper erat vehicula a. Ut posuere tortor libero, quis maximus dui venenatis eu. Pellentesque non commodo nisi. Aliquam cursus tempor ligula, in sodales ante lobortis et. Quisque non mauris sagittis, pretium elit volutpat, ullamcorper turpis. Nullam laoreet purus nec ante interdum, at imperdiet neque auctor. Vivamus tellus erat, bibendum eu lorem quis, sodales congue justo. Mauris posuere eu tortor fringilla eleifend. 
+When relying on implementation specific behaviour, our attacks target the Matrix standard as implemented by the `matrix-react-sdk` and `matrix-js-sdk` libraries. These libraries provide the basis for the [Element](https://element.io/) flagship client, which is also sometimes referred to as the client [reference implementation](https://en.wikipedia.org/w/index.php?title=Matrix_(protocol)&oldid=1106244486) by third parties. Its website reports [42M+ users](https://web.archive.org/web/20220926114259/https://element.io/about) and usage by the French, German & US governments. While plans exist to replace Element in its current form in the future, it is currently the default client [recommended](https://web.archive.org/web/20220922112533/https://matrix.org/docs/projects/try-matrix-now/) by Matrix.
 
-# Handnotes
+## What is Olm?
 
-- Nulla vel massa commodo dolor vestibulum blandit.
-- Nulla ut turpis ultrices erat dapibus semper et eu ipsum.
-- Morbi tristique ligula fringilla efficitur ultrices.
-- Quisque ullamcorper diam eget lacus condimentum maximus.
-- Nam imperdiet diam eget sem molestie, at luctus arcu aliquam.
+[Olm](https://matrix.org/docs/projects/other/olm) is an implementation of the [Double Ratchet protocol](https://signal.org/docs/specifications/doubleratchet/), as specified by Signal, and of a modified 3DH key exchange protocol.
+Olm is used in Matrix to provide a channel by which key material is shared in a pair-wise fashion.
+
+## What is Megolm?
+
+[Megolm](https://gitlab.matrix.org/matrix-org/olm/blob/master/docs/megolm.md) is a protocol used for group conversations (all chats in Matrix are formally group chats). Each Megolm channel is a unidirectional channel, used to send payload information from one device to all other devices in a group. When using Megolm, senders and receivers periodically symmetrically ratchet the shared secret state forward, aiming to achieve [forward secrecy](https://en.wikipedia.org/wiki/Forward_secrecy). Note, however, that the specification allows implementations to keep old copies of the ratchet on the receiving side which invalidates forward secrecy guarantees. In addition, senders can periodically generate a new (and independent) Megolm secret state, and send it to the receiving devices in the room via Olm, thus aiming to achieve some form of post-compromise security.
+
+The Megolm protocol has not been formally analysed.
+
+## Regarding the 'Simple confidentiality break', can't users detect when the homeserver adds a new fake user(s)/device(s) to a room?
+
+When a *user* is added to a room, this will be displayed as an event in the timeline, and is thus detectable by users. However, such a detection requires careful manual membership list inspection from users and to participants, this event appears as a legitimate group membership event. In particular, in sufficiently big rooms such an event is likely to go unnoticed by users.
+
+In environments where cross-signing and verification are enabled, adding a new *unverified user* adds a warning to the room to indicate that unverified devices are present. However, it is possible for a homeserver to add a verified user to rooms without changing the security properties of the room. This allows a colluding homeserver and verified user to eavesdrop on rooms not intended for them. In other words, the warning regarding unverified devices is independent to whether the device is intended to participate in the speciﬁc room. Users may, of course, simply ignore warnings.
+
+For example, consider any room whereby multiple privileged users are entrusted with adding new members. If a new membership event shows that a privileged member has invited someone to join, this will not be questioned. All the while, this could have been a malicious homeserver acting on behalf of the privileged member. To cover their tracks against the privileged member, the malicious homeserver need only present a different privileged member as the inviter. 
+
+In environments where cross-signing and verification are enabled, adding an *unverified device* to the user's list of devices will alert their existing sessions to start the verification process. To avoid the notification, the homeserver can present two different versions of the device list depending on the user requesting it. When a user requests their own device list, the homeserver does not include the unverified device. When a different user requests the list, the homeserver includes an unverified device that they control. The target users' devices will not be aware that a new, unverified device has been added to their account. Therefore, their clients will not present the verification dialog.
+
+Nevertheless, adding an unverified device to the room will add a warning indicator to the room. But the same caveats as above for this countermeasure apply.
+
+<!-- ## Aren't these attacks just like Heartbleed? -->
+
+<!-- [Heartbleed](https://heartbleed.com/) is a serious vulnerability in the popular OpenSSL cryptographic software library. -->
+<!-- It is implementation problem, i.e. programming mistake in OpenSSL. -->
+<!-- The RFC 6520 Heartbeat Extension checks for TLS/DTLS secure communication links by allowing a party at one end of a connection to send a Heartbeat Request message, consisting of a payload along with the payload's length as a 16-bit integer. -->
+<!-- The receiving computer then must send exactly the same payload back to the sender. -->
+<!-- The affected versions of OpenSSL allocate a memory buffer for the message to be returned based on the length field in the requesting message, without regard to the actual size of that message's payload. -->
+<!-- Because of this failure to do proper bounds checking, the message returned consists of the payload, possibly followed by whatever else happened to be in the allocated memory buffer. -->
+<!-- This is an implementation bug as the length of the allocated buffer is incorrectly set. -->
+
+<!-- Whilst some of our attacks are issues with Element and `matrix-js-sdk`'s implementation, some of our attacks *are* protocol design flaws (as previously highlighted). -->
+<!-- For example, our 'Simple confidentiality break' attack relies on the fact that the specification provides no authentication for room membership messages. -->
+<!-- The implementation of these messages is correct, but provides no authentication as it was never specified by the design. -->
+
+## Does this mean that Matrix does not provide confidentiality and/or authentication?
+
+Matrix and its implementations can, after today's fixes, provide confidentiality and authentication assurances against malicious homeservers, if users act as follows. Each user must enable cross-signing and perform out-of-band verification with each of their own devices, and with each user they interact with.[^2] They must then remain vigilant: any warning messages or icons must be spotted and investigated. In the Element user interface, this requires checking the room icon and each individual message they receive (in some cases, past messages can retroactively receive a warning). Note that such warnings could be expected behaviour (for example if the message was decrypted using a server-side Megolm backup or through the "Key Request protocol"). Users would need the expertise to investigate these warnings thoroughly and, if an issue is found, recover from it. If you follow these instructions without fail, Matrix can provide you with confidentiality and authentication.
+
+This places an unnecessary burden on users of Matrix clients, limits the user base to those with an understanding of the cryptography used in Matrix and how it is used therein, and is impractical for daily use. The burden this places on users is unnecessary and the result of the design flaws we highlight in our work (this is our "Simple confidentiality break" attack). Whilst this issue will persist after today's fixes, a remediation is planned by the Matrix developers for a later date.
+
+Some of our other attacks against Matrix's flagship client Element are based on implementation flaws and, thus, were able to break its confidentiality and authentication guarantees even when the steps above were followed (prior to today's patches). As of today, most of these issues should be fixed (see above), but we have not independently verified this. The Matrix developers report that other clients are not affected but, similarly, we have not independently verified this.
+
+## Am I affected?
+
+The Matrix developers discuss vulnerable and unaffected clients in their [blog posts](https://matrix.org/blog/category/security). We did not independently verify this.
+
+For the avoidance of doubt, all our attacks require the collaboration of a malicious homeserver, i.e. passive or even active third parties cannot break confidentiality or authentication as all communication between homeservers and between clients and homeservers is protected by [TLS](https://en.wikipedia.org/wiki/Transport_Layer_Security).
+
+## What recommendations do you give?
+
+Our attacks together show a rich attack surface in Matrix from both a protocol and implementation perspective. While it is important to perform security audits of implementations, they sometimes fail to catch attacks that are present due to protocol flaws. In order to verify that confidentiality and authentication indeed can be provided, a formal security analysis of the protocol design is required.
+
+# Footnotes
+
+[^1]: Our analysis is based on, and our proof-of-concept attacks tested against, Element Web at [commit #479d4bf6](https://github.com/vector-im/element-web/tree/479d4bf64d97adea9611644695cdb373647fc644) with `matrix-react-sdk` at [commit #59b9d1e8](https://github.com/matrix-org/matrix-react-sdk/tree/59b9d1e8189b00bde440c30a962d141a1ebfa5a0) and `matrix-js-sdk` at [commit #4721aa1d](https://github.com/matrix-org/matrix-js-sdk/tree/4721aa1d241a46601601259ec7ca6db9ff1bb5fb).
+
+[^2]: It is common among secure messengers to require out-of-band verification to protect against active mallory-in-the-middle attacks. Matrix's cross-signing feature helps minimise how often users must perform such procedures. Thus, in this case, Matrix's design *lowers the burden* for users who do use out-of-band verification.
