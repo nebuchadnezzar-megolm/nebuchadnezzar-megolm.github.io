@@ -8,6 +8,11 @@ a:hover {
   text-decoration: underline;
 }
 
+strong a:hover, b a:hover {
+  font-weight: bold;
+  text-decoration: underline;
+}
+
 .title {
   font-size: 3.5em;
   background: #ffffff;
