@@ -14,7 +14,7 @@ strong a:hover, b a:hover {
 }
 
 .title {
-  font-size: 3.5em;
+  font-size: 50px;
   background: #ffffff;
   z-index: 1;
   position: relative;
@@ -24,7 +24,7 @@ strong a:hover, b a:hover {
   ul {
     margin: 0;
   }
-  margin-bottom: 20px;
+  margin-bottom: 1rem;
 }
 
 .sidebar {
@@ -32,7 +32,7 @@ strong a:hover, b a:hover {
   float: left;
   position: -webkit-sticky;
   position: sticky;
-  top: 12em;
+  top: 12rem;
   background: #ffffff;
   z-index: 1;
 }
@@ -40,14 +40,14 @@ strong a:hover, b a:hover {
 .small-title {
   font-weight: 800;
   position: fixed;
-  top: 4em;
-  font-size: 1.5em;
+  top: 4rem;
+  font-size: 22px;
   width: 270px;
 }
 
 @media print, screen and (max-width: 960px) {
   .title{
-    font-size: 2.5em;
+    font-size: 40px;
   }
 
   .sidebar {
