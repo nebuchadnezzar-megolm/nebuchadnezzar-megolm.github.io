@@ -12,6 +12,8 @@ We report several practically-exploitable cryptographic vulnerabilities in the e
 
 We target the setting where encrypted messaging and verification are enabled, i.e. in the presence of the strongest protections offered by the protocol. Furthermore, all attacks require cooperation of the homeserver. This is a natural threat model to consider, given that end-to-end encryption aims to provide protections against such untrusted third parties. We report the following vulnerabilities and attacks:
 
+*Update:* We have uploaded a new draft of [this paper](./static/paper.pdf). It includes details of the mitigations for these attacks (alongside a few updates and corrections).
+
 ## Simple confidentiality break
 
 Our first two attacks exploit the homeserver’s control over the list of users and/or devices in a room. Neither of these attacks break the confidentiality of Megolm or Olm protocols (see below) directly, instead they utilise functionality that puts too much trust in the homeserver to act honestly (in the context of end-to-end encryption, such trust should be minimised).
