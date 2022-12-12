@@ -6,13 +6,13 @@ title: Nebuchadnezzar
 toc: true
 ---
 
+**Update:** We have uploaded a new draft of [this paper](./static/paper.pdf). It includes details of the mitigations for these attacks (alongside a few updates and corrections).
+
 # Overview
 
 We report several practically-exploitable cryptographic vulnerabilities in the end-to-end encryption in [Matrix](https://en.wikipedia.org/wiki/Matrix_(protocol)) and describe proof-of-concept attacks exploiting these vulnerabilities. When relying on implementation specific behaviour, these attacks target the Matrix standard as implemented by the `matrix-react-sdk` and `matrix-js-sdk` libraries.[^1] These libraries provide the basis for the flagship [Element](https://element.io/) client. The vulnerabilities we exploit differ in their nature (insecure by design, protocol confusion, lack of domain separation, implementation bugs) and are distributed broadly across the different subprotocols and libraries that make up the cryptographic core of Matrix.
 
 We target the setting where encrypted messaging and verification are enabled, i.e. in the presence of the strongest protections offered by the protocol. Furthermore, all attacks require cooperation of the homeserver. This is a natural threat model to consider, given that end-to-end encryption aims to provide protections against such untrusted third parties. We report the following vulnerabilities and attacks:
-
-*Update:* We have uploaded a new draft of [this paper](./static/paper.pdf). It includes details of the mitigations for these attacks (alongside a few updates and corrections).
 
 ## Simple confidentiality break
 
