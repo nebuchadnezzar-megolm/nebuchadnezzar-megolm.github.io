@@ -6,9 +6,7 @@ title: Nebuchadnezzar
 toc: true
 ---
 
-**Status:** Whilst the language of the paper and this website is in present tense, many of the vulnerabilities disclosed have been fixed. See [our paper](./static/paper.pdf) (or [Matrix' website](https://matrix.org/blog/2022/09/28/upgrade-now-to-address-encryption-vulns-in-matrix-sdks-and-clients)) for more details.
-
-**Update:** We have uploaded a new draft of [this paper](./static/paper.pdf). It includes details of the mitigations for these attacks (alongside a few updates and corrections).
+**Status:** Whilst the language of the paper and this website is in present tense, many of the vulnerabilities disclosed have been fixed. See [our updated paper](./static/paper.pdf) (or [Matrix' website](https://matrix.org/blog/2022/09/28/upgrade-now-to-address-encryption-vulns-in-matrix-sdks-and-clients)) for more details. Our updated paper includes details of the mitigations for these attacks (alongside a few updates and corrections).
 
 # Overview
 
